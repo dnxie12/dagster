@@ -4,6 +4,7 @@ import sys
 
 import requests
 from airflow import DAG
+from airflow.models import BaseOperator
 from airflow.operators.python import PythonOperator
 
 
@@ -265,5 +266,63 @@ def compute_fn() -> None:
     return None
 
 
-def build_dagster_migrated_operator(task_id: str, dag: DAG, **kwargs):
-    return PythonOperator(task_id=task_id, dag=dag, python_callable=compute_fn, **kwargs)
+class DagsterOperator(PythonOperator):
+    pass
+
+
+def build_dagster_migrated_operator(task_id: str, **kwargs):
+    return DagsterOperator(task_id=task_id, python_callable=compute_fn, **kwargs)
+
+
+def migrating_to_dagster(
+    migration_status: dict,
+):
+    """Use at the end of a DAG file to mark the DAG as migrating to Dagster."""
+    global_vars = sys._getframe(1).f_globals  # noqa: SLF001
+    dags_by_id = {}
+    task_vars_to_migrate = set()
+    for var in global_vars:
+        # First, inspect for dags. If any are found, update them and add them to the dict.
+        if isinstance(global_vars[var], DAG) and migration_status.get(global_vars[var].dag_id):
+            dag: DAG = global_vars[var]
+            dags_by_id[dag.dag_id] = global_vars[var]
+        # If we find any operators and need to migrate them, add them to the dict of operators to migrate per dag.
+        if isinstance(global_vars[var], BaseOperator) and migration_status.get(
+            global_vars[var].dag_id, {}
+        ).get(global_vars[var].task_id):
+            # We'll add this to the "all tasks by id" dict after we create a new operator.
+            task_vars_to_migrate.add(var)
+    for var in task_vars_to_migrate:
+        original_op: BaseOperator = global_vars[var]
+        # Need to figure out how to make this constructor resistant to changes in airflow version.
+        print(f"Creating new operator for task {original_op.task_id} in dag {original_op.dag_id}")  # noqa: T201
+        # First, flush the existing operator from the dag.
+        new_op = build_dagster_migrated_operator(
+            task_id=original_op.task_id,
+            owner=original_op.owner,
+            email=original_op.email,
+            email_on_retry=original_op.email_on_retry,
+            email_on_failure=original_op.email_on_failure,
+            retries=original_op.retries,
+            retry_delay=original_op.retry_delay,
+            retry_exponential_backoff=original_op.retry_exponential_backoff,
+            max_retry_delay=original_op.max_retry_delay,
+            start_date=original_op.start_date,
+            end_date=original_op.end_date,
+            depends_on_past=original_op.depends_on_past,
+            wait_for_downstream=original_op.wait_for_downstream,
+            params=original_op.params,
+            doc_md="This task has been migrated to dagster.",
+        )
+        original_op.dag.task_dict[original_op.task_id] = new_op
+
+        new_op.upstream_task_ids = original_op.upstream_task_ids
+        new_op.downstream_task_ids = original_op.downstream_task_ids
+        new_op.dag = original_op.dag
+        original_op.dag = None
+        print(f"Switching global state var to dagster operator for {var}.")  # noqa: T201
+        global_vars[var] = new_op
+
+    for dag_id, dag in dags_by_id.items():
+        new_tag = json.dumps({"dagster_migration": migration_status[dag_id]})
+        dag.tags.append(new_tag)
