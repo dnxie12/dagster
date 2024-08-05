@@ -1589,3 +1589,23 @@ def test_context_bound_state_with_error_async_generator():
         asyncio.run(get_results())
 
     assert_context_unbound(ctx)
+
+
+def test_run_tags():
+    @op
+    def basic_op(context):
+        assert context.run_tags["foo"] == "bar"
+        assert context.has_tag("foo")
+        assert not context.has_tag("ffdoo")
+        assert context.get_tag("foo") == "bar"
+
+    basic_op(build_op_context(run_tags={"foo": "bar"}))
+
+    @asset
+    def basic_asset(context):
+        assert context.run_tags["foo"] == "bar"
+        assert context.has_tag("foo")
+        assert not context.has_tag("ffdoo")
+        assert context.get_tag("foo") == "bar"
+
+    basic_asset(build_asset_context(run_tags={"foo": "bar"}))
