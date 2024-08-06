@@ -3,9 +3,14 @@ from typing import List, Optional, Sequence
 import dagster._check as check
 import graphene
 from dagster._core.definitions.time_window_partitions import PartitionRangeStatus
+from dagster._core.errors import DagsterUserCodeProcessError
 from dagster._core.events import DagsterEventType
 from dagster._core.remote_representation.external import ExternalExecutionPlan, ExternalJob
-from dagster._core.remote_representation.external_data import DEFAULT_MODE_NAME, ExternalPresetData
+from dagster._core.remote_representation.external_data import (
+    DEFAULT_MODE_NAME,
+    ExternalPartitionExecutionErrorData,
+    ExternalPresetData,
+)
 from dagster._core.remote_representation.represented import RepresentedJob
 from dagster._core.storage.dagster_run import (
     DagsterRunStatsSnapshot,
@@ -26,7 +31,11 @@ from ...implementation.fetch_pipelines import get_job_reference_or_raise
 from ...implementation.fetch_runs import get_runs, get_stats, get_step_stats
 from ...implementation.fetch_schedules import get_schedules_for_pipeline
 from ...implementation.fetch_sensors import get_sensors_for_pipeline
-from ...implementation.utils import UserFacingGraphQLError, capture_error
+from ...implementation.utils import (
+    UserFacingGraphQLError,
+    apply_cursor_limit_reverse,
+    capture_error,
+)
 from ..asset_checks import GrapheneAssetCheckHandle
 from ..asset_key import GrapheneAssetKey
 from ..dagster_types import (
@@ -44,6 +53,7 @@ from ..logs.events import (
     GrapheneObservationEvent,
     GrapheneRunStepStats,
 )
+from ..partition_keys import GraphenePartitionKeys
 from ..repository_origin import GrapheneRepositoryOrigin
 from ..runs import GrapheneRunConfigData
 from ..schedules.schedules import GrapheneSchedule
@@ -861,6 +871,16 @@ class GraphenePipeline(GrapheneIPipelineSnapshotMixin, graphene.ObjectType):
     isJob = graphene.NonNull(graphene.Boolean)
     isAssetJob = graphene.NonNull(graphene.Boolean)
     repository = graphene.NonNull("dagster_graphql.schema.external.GrapheneRepository")
+    partitionKeysOrError = graphene.Field(
+        graphene.NonNull(GraphenePartitionKeys),
+        cursor=graphene.String(),
+        limit=graphene.Int(),
+        reverse=graphene.Boolean(),
+    )
+    partition = graphene.Field(
+        "dagster_graphql.schema.partition_sets.GraphenePartition",
+        partition_name=graphene.NonNull(graphene.String),
+    )
 
     class Meta:
         interfaces = (GrapheneSolidContainer, GrapheneIPipelineSnapshot)
@@ -901,6 +921,41 @@ class GraphenePipeline(GrapheneIPipelineSnapshotMixin, graphene.ObjectType):
             location.get_repository(handle.repository_name),
             location,
         )
+
+    # @capture_error
+    def resolve_partitionKeysOrError(
+        self,
+        graphene_info: ResolveInfo,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = None,
+        reverse: Optional[bool] = None,
+    ) -> GraphenePartitionKeys:
+        print("made it into resolve_partitionKeysOrError")
+        return GraphenePartitionKeys(
+            apply_cursor_limit_reverse(
+                self._get_partition_names(graphene_info),
+                cursor=cursor,
+                limit=limit,
+                reverse=reverse or False,
+            )
+        )
+
+    def resolve_partition(self, graphene_info: ResolveInfo, partition_name: str):
+        return get_partition_by_name(
+            graphene_info,
+            self._external_repository_handle,
+            self._external_partition_set,
+            partition_name,
+        )
+
+    def _get_partition_names(self, graphene_info: ResolveInfo) -> Sequence[str]:
+        result = graphene_info.context.get_external_partition_names_for_job(
+            self._external_job,
+        )
+        if isinstance(result, ExternalPartitionExecutionErrorData):
+            raise DagsterUserCodeProcessError.from_error_info(result.error)
+
+        return result.partition_names
 
 
 class GrapheneJob(GraphenePipeline):
