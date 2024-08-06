@@ -53,6 +53,7 @@ from dagster._core.remote_representation.external_data import (
     ExternalSensorExecutionErrorData,
     external_job_data_from_def,
     external_repository_data_from_def,
+    job_name_for_external_partition_set_name,
 )
 from dagster._core.remote_representation.origin import RemoteRepositoryOrigin
 from dagster._core.types.loadable_target_origin import (
@@ -613,13 +614,14 @@ class DagsterApiServer(DagsterApiServicer):
     ) -> api_pb2.ExternalPartitionNamesReply:
         try:
             partition_names_args = deserialize_value(
-                request.serialized_partition_names_args,
-                PartitionNamesArgs,
+                request.serialized_partition_names_args, PartitionNamesArgs
             )
+
             serialized_response = serialize_value(
                 get_partition_names(
                     self._get_repo_for_origin(partition_names_args.repository_origin),
                     partition_names_args.partition_set_name,
+                    selected_asset_keys=partition_names_args.selected_asset_keys,
                 )
             )
         except Exception:
@@ -710,8 +712,11 @@ class DagsterApiServer(DagsterApiServicer):
             serialized_data = serialize_value(
                 get_partition_tags(
                     self._get_repo_for_origin(partition_args.repository_origin),
-                    partition_args.partition_set_name,
-                    partition_args.partition_name,
+                    job_name=job_name_for_external_partition_set_name(
+                        partition_args.partition_set_name
+                    ),
+                    partition_name=partition_args.partition_name,
+                    selected_asset_keys=partition_args.selected_asset_keys,
                     instance_ref=instance_ref,
                 )
             )
