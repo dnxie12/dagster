@@ -408,6 +408,7 @@ class PartitionArgs(
             ("partition_set_name", str),
             ("partition_name", str),
             ("instance_ref", Optional[InstanceRef]),
+            ("selected_asset_keys", Optional[AbstractSet[AssetKey]]),
         ],
     )
 ):
@@ -417,6 +418,7 @@ class PartitionArgs(
         partition_set_name: str,
         partition_name: str,
         instance_ref: Optional[InstanceRef] = None,
+        selected_asset_keys: Optional[AbstractSet[AssetKey]] = None,
     ):
         return super(PartitionArgs, cls).__new__(
             cls,
@@ -428,6 +430,9 @@ class PartitionArgs(
             partition_set_name=check.str_param(partition_set_name, "partition_set_name"),
             partition_name=check.str_param(partition_name, "partition_name"),
             instance_ref=check.opt_inst_param(instance_ref, "instance_ref", InstanceRef),
+            selected_asset_keys=check.opt_nullable_set_param(
+                selected_asset_keys, "selected_asset_keys", of_type=AssetKey
+            ),
         )
 
 
@@ -435,16 +440,28 @@ class PartitionArgs(
 class PartitionNamesArgs(
     NamedTuple(
         "_PartitionNamesArgs",
-        [("repository_origin", RemoteRepositoryOrigin), ("partition_set_name", str)],
+        [
+            ("repository_origin", RemoteRepositoryOrigin),
+            ("partition_set_name", str),
+            ("selected_asset_keys", Optional[AbstractSet[AssetKey]]),
+        ],
     )
 ):
-    def __new__(cls, repository_origin: RemoteRepositoryOrigin, partition_set_name: str):
+    def __new__(
+        cls,
+        repository_origin: RemoteRepositoryOrigin,
+        partition_set_name: str,
+        selected_asset_keys: Optional[AbstractSet[AssetKey]] = None,
+    ):
         return super(PartitionNamesArgs, cls).__new__(
             cls,
             repository_origin=check.inst_param(
                 repository_origin, "repository_origin", RemoteRepositoryOrigin
             ),
             partition_set_name=check.str_param(partition_set_name, "partition_set_name"),
+            selected_asset_keys=check.opt_nullable_set_param(
+                selected_asset_keys, "selected_asset_keys", of_type=AssetKey
+            ),
         )
 
 
