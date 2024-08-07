@@ -3,7 +3,6 @@ import * as React from 'react';
 import {useMemo} from 'react';
 import styled from 'styled-components';
 
-import {AutoMaterializeExperimentalBanner} from './AutoMaterializeExperimentalBanner';
 import {AutomaterializeLeftPanel} from './AutomaterializeLeftPanel';
 import {
   AutomaterializeMiddlePanel,
@@ -83,7 +82,6 @@ export const AssetAutomaterializePolicyPage = ({
       style={{flex: 1, minHeight: 0, color: Colors.textLight(), overflow: 'hidden'}}
       flex={{direction: 'column'}}
     >
-      <AutoMaterializeExperimentalBanner />
       <Box flex={{direction: 'row'}} style={{minHeight: 0, flex: 1}}>
         <Box flex={{direction: 'row'}} style={{flex: 1, minHeight: 0}}>
           <Box border="right" flex={{grow: 0, direction: 'column'}} style={{flex: '0 0 296px'}}>
