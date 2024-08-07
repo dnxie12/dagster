@@ -15,6 +15,15 @@ def get_version() -> str:
 ver = get_version()
 # dont pin dev installs to avoid pip dep resolver issues
 pin = "" if ver == "1!0+dev" else f"=={ver}"
+airflow_dep_list = [
+    "apache-airflow>=2.0.0,<2.8",
+    # Flask-session 0.6 is incompatible with certain airflow-provided test
+    # utilities.
+    "flask-session<0.6.0",
+    "connexion<3.0.0",  # https://github.com/apache/airflow/issues/35234
+    "pendulum>=2.0.0,<3.0.0",
+]
+
 setup(
     name="dagster-airlift",
     version=get_version(),
@@ -39,13 +48,8 @@ setup(
     extras_require={
         "core": [
             f"dagster{pin}",
-            "apache-airflow>=2.0.0,<2.8",
-            # Flask-session 0.6 is incompatible with certain airflow-provided test
-            # utilities.
-            "flask-session<0.6.0",
-            "connexion<3.0.0",  # https://github.com/apache/airflow/issues/35234
-            "pendulum>=2.0.0,<3.0.0",
         ],
+        "airflow": airflow_dep_list,
         "mwaa": ["boto3"],
         "dbt": [f"dagster-dbt{pin}"],
         "test": ["pytest", f"dagster-dbt{pin}", "dbt-duckdb", "boto3"],

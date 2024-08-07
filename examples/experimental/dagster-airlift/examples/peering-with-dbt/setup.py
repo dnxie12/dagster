@@ -24,7 +24,7 @@ setup(
     install_requires=[
         f"dagster{pin}",
         f"dagster-webserver{pin}",
-        f"dagster-airlift[dbt]{pin}",
+        f"dagster-airlift[dbt,core,airflow]{pin}",
         "dbt-duckdb",
         "pandas",
     ],
