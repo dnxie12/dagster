@@ -4,6 +4,7 @@ from typing import Any, Dict, List, NamedTuple
 
 import requests
 from dagster import AssetKey
+from dagster._core.errors import DagsterError
 from pydantic import BaseModel
 
 
@@ -30,7 +31,7 @@ class AirflowInstance(NamedTuple):
                 for dag in dags["dags"]
             ]
         else:
-            raise Exception(
+            raise DagsterError(
                 f"Failed to fetch DAGs. Status code: {response.status_code}, Message: {response.text}"
             )
 
@@ -45,7 +46,7 @@ class AirflowInstance(NamedTuple):
                 metadata=response.json(),
             )
         else:
-            raise Exception(
+            raise DagsterError(
                 f"Failed to fetch task info for {dag_id}/{task_id}. Status code: {response.status_code}, Message: {response.text}"
             )
 
@@ -68,8 +69,8 @@ class AirflowInstance(NamedTuple):
         if response.status_code == 200:
             return response.text
         else:
-            raise Exception(
-                f"Failed to fetch source code for {file_token}. Status code: {response.status_code}, Message: {response.text}"
+            raise DagsterError(
+                f"Failed to fetch source code. Status code: {response.status_code}, Message: {response.text}"
             )
 
     @staticmethod
@@ -90,7 +91,7 @@ class AirflowInstance(NamedTuple):
         if response.status_code == 200:
             return response.json()["dag_runs"]
         else:
-            raise Exception(
+            raise DagsterError(
                 f"Failed to fetch dag runs for {dag_id}. Status code: {response.status_code}, Message: {response.text}"
             )
 
@@ -113,6 +114,22 @@ class TaskInfo(BaseModel):
     dag_id: str
     task_id: str
     metadata: Dict[str, Any]
+
+
+class DagRun(BaseModel):
+    dag_id: str
+    note: str
+    state: str
+    airflow_run_id: str
+    start_date: datetime.datetime
+    end_date: datetime.datetime
+    run_type: str
+    airflow_run_config: Dict[str, Any]
+    raw_metadata: Dict[str, Any]
+
+    @property
+    def success(self) -> bool:
+        return self.state == "success"
 
 
 class AirflowAuthBackend(ABC):
